@@ -2,31 +2,70 @@ const express = require('express');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const cors = require('cors');
 const axios = require('axios');
+const connectDB = require('./database');
+const Scheme = require('./Scheme');
 require('dotenv').config();
+
 const app = express();
 const port = process.env.PORT || 3000;
 const genai = new GoogleGenerativeAI('AIzaSyBrjSjw2Y6nbTq182znm7-tzODn-N2cTH0');
 const model = genai.getGenerativeModel({ model: "gemini-pro" });
+
+// Connect to database
+connectDB();
+
 app.use(cors());
 app.use(express.json());
+
 const responseCache = new Map();
 const CACHE_DURATION = 3600000;
+
 async function fetchSchemeDetails(schemeName) {
   try {
+    // First, check our database
+    const schemeFromDB = await Scheme.findOne({
+      name: { $regex: new RegExp(schemeName, 'i') }
+    });
+    
+    if (schemeFromDB) {
+      return schemeFromDB;
+    }
+
+    // If not in database, check external APIs
     const response = await axios.get(`https://api.mockapi.io/schemes/v1/schemes?name=${encodeURIComponent(schemeName)}`);
     if (!response.data || response.data.length === 0) {
       const npiResponse = await axios.get(
         `https://services.india.gov.in/service/listing?cat=41&ln=en&term=${encodeURIComponent(schemeName)}`
       );
+      
+      // Store the new scheme in our database if found
+      if (npiResponse.data) {
+        const newScheme = new Scheme({
+          name: schemeName,
+          description: npiResponse.data.description || '',
+          // Map other fields accordingly
+        });
+        await newScheme.save();
+      }
+      
       return npiResponse.data;
     }
+    
+    // Store the scheme from mockAPI in our database
+    const schemeData = response.data[0];
+    const newScheme = new Scheme({
+      name: schemeData.name,
+      description: schemeData.description || '',
+      // Map other fields accordingly
+    });
+    await newScheme.save();
+    
     return response.data;
   } catch (error) {
     console.error('Error fetching scheme details:', error);
     return null;
   }
 }
-
 function generatePrompt(question, schemeDetails) {
   let basePrompt = `As an AI assistant specializing in government schemes and policies, help with the following question: ${question}\n\n`;
   if (schemeDetails) {
