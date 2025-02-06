@@ -3,7 +3,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Chatbot from "./components/Chatbot";
 import UserLocationMap from "./components/map";
-import Signup from "./components/Signup";
+
+
 import Login from "./components/Login";
 import { AuthProvider } from "./components/AuthProvider";
 import Home from "./components/Home";
@@ -20,7 +21,7 @@ const App = () => {
         <Routes>
           <Route path="/" element={<WomenEmpowermentLoginSignup/>} />
           <Route path="/home" element={<Home/>}/>
-          <Route path="/signup" element={<Signup/>}/>
+         
           <Route path="chatbot" element={<Chatbot />}/>
           <Route path="/login" element={<Login/>}/>
           <Route path="/map" element={<UserLocationMap/>}/>

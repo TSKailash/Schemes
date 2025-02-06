@@ -1,41 +1,42 @@
-import React, { useState, createContext, useContext, useEffect } from "react";
-import App from "../App";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import axios from "axios";
+
 const AuthContext = createContext(null);
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch("http://localhost:3000/api/auth-status",{
-          credentials: "include",
-        });
-        const data = await response.json();
-        setUser(data.user);
+        const response = await axios.get("http://localhost:3000/api/auth-status", { withCredentials: true });
+        setUser(response.data.user);
       } catch (error) {
         console.error("Auth check failed", error);
       }
     };
     checkAuth();
   }, []);
-  const login=(userData)=>{
-    setUser(userData);
-  }
+
+  const loginWithGoogle = () => {
+    window.location.href = "http://localhost:3000/api/auth/google";
+  };
+
   const logout = async () => {
     try {
-      await fetch("http://localhost:3000/api/logout",{
-        method: "POST",
-        credentials: "include",
-      });
+      await axios.post("http://localhost:3000/api/logout", {}, { withCredentials: true });
       setUser(null);
       window.location.href = "/login";
     } catch (error) {
       console.error("Logout failed", error);
     }
   };
+
   return (
-    <AuthContext.Provider value={{user,login,logout}}>
+    <AuthContext.Provider value={{ user, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
+
 export const useAuth = () => useContext(AuthContext);
