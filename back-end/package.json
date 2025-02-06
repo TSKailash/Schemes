@@ -28,6 +28,8 @@
     "nodemon": "^3.1.9",
     "ollama": "^0.5.12",
     "openai": "^4.81.0",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
     "path": "^0.12.7",
     "sanitize-html": "^2.14.0",
     "serpapi": "^2.1.0",
