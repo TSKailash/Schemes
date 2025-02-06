@@ -8,7 +8,7 @@ require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
-const genai = new GoogleGenerativeAI('AIzaSyBrjSjw2Y6nbTq182znm7-tzODn-N2cTH0');
+const genai = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const model = genai.getGenerativeModel({ model: "gemini-pro" });
 
 // Connect to database
@@ -43,7 +43,7 @@ async function fetchSchemeDetails(schemeName) {
         const newScheme = new Scheme({
           name: schemeName,
           description: npiResponse.data.description || '',
-          // Map other fields accordingly
+          applicationLink: `https://services.india.gov.in/service/details?scheme=${encodeURIComponent(schemeName)}`
         });
         await newScheme.save();
       }
@@ -56,7 +56,7 @@ async function fetchSchemeDetails(schemeName) {
     const newScheme = new Scheme({
       name: schemeData.name,
       description: schemeData.description || '',
-      // Map other fields accordingly
+      applicationLink: schemeData.applicationLink || `https://services.india.gov.in/service/details?scheme=${encodeURIComponent(schemeData.name)}`
     });
     await newScheme.save();
     
@@ -66,6 +66,7 @@ async function fetchSchemeDetails(schemeName) {
     return null;
   }
 }
+
 function generatePrompt(question, schemeDetails) {
   let basePrompt = `As an AI assistant specializing in government schemes and policies, help with the following question: ${question}\n\n`;
   if (schemeDetails) {
@@ -82,6 +83,25 @@ function generatePrompt(question, schemeDetails) {
   If no scheme information is directly relevant, provide a helpful general response based on the available information.`;
   return basePrompt;
 }
+
+function formatResponseWithLinks(response, applicationLink) {
+  // Improved URL detection and formatting
+  const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+  
+  // Replace URLs with markdown links
+  const formattedResponse = response.replace(urlRegex, (url) => {
+    // Truncate very long URLs
+    const displayUrl = url.length > 50 ? url.substring(0, 50) + '...' : url;
+    return `[${displayUrl}](${url})`;
+  });
+
+  // Add application link if not already in the response
+  if (applicationLink && !formattedResponse.includes(applicationLink)) {
+    return `${formattedResponse}\n\n**Application Link:** [Apply Here](${applicationLink})`;
+  }
+  return formattedResponse;
+}
+
 app.post('/ask', async (req, res) => {
   const { question } = req.body; 
   if (!question) {
@@ -103,17 +123,22 @@ app.post('/ask', async (req, res) => {
 
     const schemeNamePrompt = `Extract only the government scheme name from this question, if any: ${question}`;
     const schemeNameResult = await model.generateContent(schemeNamePrompt);
-    const schemeName = schemeNameResult.response.text();
+    const schemeName = schemeNameResult.response.text().trim();
     const schemeDetails = schemeName ? await fetchSchemeDetails(schemeName) : null;
     const prompt = generatePrompt(question, schemeDetails);
     const result = await model.generateContent(prompt);
     const aiResponse = result.response.text();
+    
+    const applicationLink = schemeDetails?.applicationLink || 'https://services.india.gov.in';
+    const formattedResponse = formatResponseWithLinks(aiResponse, applicationLink);
+
     const finalResponse = {
       success: true,
-      answer: aiResponse,
+      answer: formattedResponse,
       schemeDetails: schemeDetails,
-      applicationLink: schemeDetails?.applicationLink || 'https://services.india.gov.in'
+      applicationLink: applicationLink
     };
+
     responseCache.set(cacheKey, {
       data: finalResponse,
       timestamp: Date.now()
@@ -121,14 +146,16 @@ app.post('/ask', async (req, res) => {
 
     res.json(finalResponse);
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Detailed Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to generate response',
-      details: error.message
+      details: error.message || 'Unknown error occurred',
+      errorStack: error.stack
     });
   }
 });
+
 app.post('/clear-cache', (req, res) => {
   responseCache.clear();
   res.json({ success: true, message: 'Cache cleared successfully' });
