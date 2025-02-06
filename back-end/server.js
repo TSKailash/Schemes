@@ -3,11 +3,13 @@ const express = require("express");
 const mongoose = require("mongoose");
 const session = require("express-session");
 const passport = require("passport");
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const User = require("./models/User");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-
+const genai = new GoogleGenerativeAI('AIzaSyBrjSjw2Y6nbTq182znm7-tzODn-N2cTH0');
+const model = genai.getGenerativeModel({ model: "gemini-pro" });
 const app = express();
 
 // Middleware
