@@ -2,19 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Send, Volume2, Loader2, Bot, User, X, Pause, Play, ExternalLink, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const ChatMessage = ({ message, isLast, onSpeak, isSpeaking, onPause, currentSpeakingMessage, resumeSpeech }) => {
+const ChatMessage = ({ message, isLast, onSpeak, isSpeaking, onPause }) => {
   const isBot = message.type === 'bot';
-
+  
   // Enhanced link rendering with better styling
   const renderLinks = (text) => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
-    return text.split(urlRegex).map((part, index) =>
+    return text.split(urlRegex).map((part, index) => 
       urlRegex.test(part) ? (
-        <a
-          key={index}
-          href={part}
-          target="_blank"
-          rel="noopener noreferrer"
+        <a 
+          key={index} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer" 
           className="text-blue-600 hover:text-blue-800 underline inline-flex items-center"
         >
           {part.length > 50 ? part.substring(0, 50) + '...' : part}
@@ -36,11 +36,12 @@ const ChatMessage = ({ message, isLast, onSpeak, isSpeaking, onPause, currentSpe
           <div className={`p-2 rounded-full shadow-md ${isBot ? 'bg-indigo-500' : 'bg-emerald-500'}`}>
             {isBot ? <Sparkles className="w-6 h-6 text-white" /> : <User className="w-6 h-6 text-white" />}
           </div>
-          <div
-            className={`p-4 rounded-2xl shadow-lg ${isBot
-                ? 'bg-gray-100 border border-gray-200'
+          <div 
+            className={`p-4 rounded-2xl shadow-lg ${
+              isBot 
+                ? 'bg-gray-100 border border-gray-200' 
                 : 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white'
-              }`}
+            }`}
           >
             <p className="text-sm whitespace-pre-wrap">
               {renderLinks(message.text)}
@@ -69,7 +70,7 @@ const ChatMessage = ({ message, isLast, onSpeak, isSpeaking, onPause, currentSpe
                     </button>
                   ) : (
                     <button
-                      onClick={currentSpeakingMessage === message.text ? resumeSpeech : () => onSpeak(message.text)}
+                      onClick={() => onSpeak(message.text)}
                       className="text-gray-500 hover:text-indigo-500 transition-colors"
                     >
                       <Play size={16} />
@@ -99,181 +100,148 @@ const Chatbot = () => {
   const synth = useRef(window.speechSynthesis);
   const currentUtterance = useRef(null);
 
+  // ... [Rest of the existing useEffect and handler methods remain the same]
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [chatHistory]);
-
-  useEffect(() => {
-    recognition.current = setupSpeechRecognition();
-    return () => {
-      if (synth.current) {
-        synth.current.cancel();
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+    }, [chatHistory]);
+    useEffect(() => {
+      if (isListening) {
+        handleVoiceInput();
+      }
+      recognition.current = setupSpeechRecognition();
+      return () => {
+        if (synth.current) {
+          synth.current.cancel();
+        }
+      };
+    }, []);
+    const pauseSpeech = () => {
+      if (synth.current && isSpeaking) {
+        synth.current.pause();
+        setIsSpeaking(false);
       }
     };
-  }, []);
-
-  const speakText = (text) => {
-    if (!synth.current) return;
-
-    // Cancel any ongoing speech
-    synth.current.cancel();
-
-    setCurrentSpeakingMessage(text);
-
-    // Create a new utterance
-    const utterance = new SpeechSynthesisUtterance(text);
-    currentUtterance.current = utterance;
-
-    // Configure utterance properties for better control
-    utterance.rate = 1.0;  // Normal speaking rate
-    utterance.pitch = 1.0; // Normal pitch
-
-    // Event handlers
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-    };
-
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      setCurrentSpeakingMessage(null);
-    };
-
-    utterance.onpause = () => {
-      setIsSpeaking(false);
-    };
-
-    utterance.onresume = () => {
-      setIsSpeaking(true);
-    };
-
-    utterance.onerror = (event) => {
-      console.error('Speech synthesis error:', event);
-      setIsSpeaking(false);
-      setCurrentSpeakingMessage(null);
-      setError('Text-to-speech failed. Please try again.');
-    };
-
-    synth.current.speak(utterance);
-  };
-
-  const pauseSpeech = () => {
-    if (synth.current && isSpeaking) {
-      // Pause the current speech
-      synth.current.pause();
-      setIsSpeaking(false);
-    }
-  };
-
-  const resumeSpeech = () => {
-    if (synth.current && currentUtterance.current) {
-      // Resume from the paused point
-      synth.current.resume();
-      setIsSpeaking(true);
-    }
-  };
-
-  const handleSend = async () => {
-    if (userInput.trim() === '' || loading) return;
-    setShowWelcome(false);
-    const currentInput = userInput;
-    setUserInput('');
+    const speakText = (text) => {
+      if (!synth.current) return;
+      synth.current.cancel();
+      setCurrentSpeakingMessage(text);
+      const utterance = new SpeechSynthesisUtterance(text);
+      currentUtterance.current = utterance;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        setCurrentSpeakingMessage(null);
+      };
+      utterance.onpause = () => setIsSpeaking(false);
+      utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event);
+        setIsSpeaking(false);
+        setCurrentSpeakingMessage(null);
+        setError('Text-to-speech failed. Please try again.');
+      };
   
-    try {
-      setLoading(true);
-      setError(null);
-      setChatHistory(prev => [...prev, {
-        type: 'user',
-        text: currentInput,
-        timestamp: new Date().toLocaleTimeString()
-      }]);
+      synth.current.speak(utterance);
+    };
   
-      const response = await fetch('http://localhost:3000/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: currentInput }),
-      });
+    const handleSend = async () => {
+      if (userInput.trim() === '' || loading) return;
+      setShowWelcome(false);
+      const currentInput = userInput;
+      setUserInput('');
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
+      try {
+        setLoading(true);
+        setError(null);
+        setChatHistory(prev => [...prev, { 
+          type: 'user', 
+          text: currentInput,
+          timestamp: new Date().toLocaleTimeString() 
+        }]);
   
-      if (data.success) {
-        const botResponse = {
+        const response = await fetch('http://localhost:3000/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: currentInput }),
+        });
+  
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+  
+        if (data.success) {
+          const botResponse = {
+            type: 'bot',
+            text: data.answer,
+            applicationLink: data.applicationLink,
+            timestamp: new Date().toLocaleTimeString()
+          };
+          setChatHistory(prev => [...prev, botResponse]);
+        } else {
+          throw new Error(data.error || 'Failed to get response');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        setError('Failed to get response. Please try again.');
+        setChatHistory(prev => [...prev, {
           type: 'bot',
-          text: data.answer.replace(/\*\*(.*?)\*\*/g, "$1"),
-          applicationLink: data.applicationLink,
+          text: 'Sorry, I encountered an error. Please try again.',
+          isError: true,
           timestamp: new Date().toLocaleTimeString()
-        };
-        setChatHistory(prev => [...prev, botResponse]);
-      } else {
-        throw new Error(data.error || 'Failed to get response');
+        }]);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error:', error);
-      setError('Failed to get response. Please try again.');
-      setChatHistory(prev => [...prev, {
-        type: 'bot',
-        text: 'Sorry, I encountered an error. Please try again.',
-        isError: true,
-        timestamp: new Date().toLocaleTimeString()
-      }]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const setupSpeechRecognition = () => {
-    if (recognition.current) {
-      recognition.current.stop();
-    }
-    if (!window.webkitSpeechRecognition && !window.SpeechRecognition) {
-      setError('Speech recognition is not supported in this browser.');
-      return null;
-    }
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognitionInstance = new SpeechRecognition();
-    recognitionInstance.continuous = false;
-    recognitionInstance.interimResults = false;
-
-    recognitionInstance.onstart = () => {
-      setIsListening(true);
-      setError(null);
     };
-
-    recognitionInstance.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionInstance.onerror = (event) => {
-      setIsListening(false);
-      setError('Speech recognition failed. Please try again or type your message.');
-      console.error('Speech Recognition Error:', event.error);
-    };
-
-    recognitionInstance.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setUserInput(transcript);
-      setTimeout(() => handleSend(), 500);
-    };
-
-    return recognitionInstance;
-  };
-
-  const handleVoiceInput = () => {
-    if (isListening) {
+  
+    const setupSpeechRecognition = () => {
       if (recognition.current) {
         recognition.current.stop();
       }
-      setIsListening(false);
-    } else {
-      recognition.current = setupSpeechRecognition();
-      recognition.current.start();
-    }
-  };
+      if (!window.webkitSpeechRecognition && !window.SpeechRecognition) {
+        setError('Speech recognition is not supported in this browser.');
+        return null;
+      }
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognitionInstance = new SpeechRecognition();
+      recognitionInstance.continuous = false;
+      recognitionInstance.interimResults = false;
+      
+      recognitionInstance.onstart = () => {
+        setIsListening(true);
+        setError(null);
+      };
+      
+      recognitionInstance.onend = () => {
+        setIsListening(false);
+      };
+      
+      recognitionInstance.onerror = (event) => {
+        setIsListening(false);
+        setError('Speech recognition failed. Please try again or type your message.');
+        console.error('Speech Recognition Error:', event.error);
+      };
+      
+      recognitionInstance.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setUserInput(transcript);
+        setTimeout(() => handleSend(), 500);
+      };
+      
+      return recognitionInstance;
+    };
+  
+    const handleVoiceInput = () => {
+      if (isListening) {
+        if (recognition.current) {
+          recognition.current.stop();
+        }
+        setIsListening(false);
+      } else {
+        recognition.current = setupSpeechRecognition();
+        recognition.current.start();
+      }
+    };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 p-4 flex items-center justify-center">
@@ -286,11 +254,11 @@ const Chatbot = () => {
             Your intelligent guide to government schemes and policies
           </p>
         </div>
-
+        
         <div className="p-6">
           <AnimatePresence>
             {error && (
-              <motion.div
+              <motion.div 
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
@@ -303,14 +271,14 @@ const Chatbot = () => {
               </motion.div>
             )}
           </AnimatePresence>
-
-          <div
+          
+          <div 
             ref={chatContainerRef}
             className="bg-gray-50 rounded-xl p-4 h-[500px] overflow-y-auto mb-4 space-y-4 scroll-smooth border border-gray-200"
           >
             <AnimatePresence>
               {showWelcome ? (
-                <motion.div
+                <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="flex justify-center items-center h-full"
@@ -331,21 +299,19 @@ const Chatbot = () => {
                 </motion.div>
               ) : (
                 chatHistory.map((message, index) => (
-                  <ChatMessage
-                    key={index}
-                    message={message}
+                  <ChatMessage 
+                    key={index} 
+                    message={message} 
                     isLast={index === chatHistory.length - 1}
                     onSpeak={speakText}
                     onPause={pauseSpeech}
-                    resumeSpeech={resumeSpeech}
                     isSpeaking={isSpeaking && currentSpeakingMessage === message.text}
-                    currentSpeakingMessage={currentSpeakingMessage}
                   />
                 ))
               )}
             </AnimatePresence>
           </div>
-
+          
           <div className="flex gap-3">
             <textarea
               value={userInput}
